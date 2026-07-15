@@ -35,6 +35,40 @@ NOTE: All conversion work bi-directionally (from jira to markdown and back again
 * Panels (thanks to erykwarren)
 
 
+## CLI
+
+Installing the package globally (`npm install -g jira2md`) provides two commands:
+
+* `md2jira` — Markdown → JIRA wiki markup
+* `jira2md` — JIRA wiki markup → Markdown
+
+Both follow the same usage conventions:
+
+```
+# Convert a file, printing the result to stdout
+md2jira input.md
+
+# Convert a file, writing the result to a file
+md2jira input.md output.jira
+
+# Read from stdin, write to stdout
+cat input.md | md2jira
+
+# Show usage
+md2jira --help
+```
+
+`jira2md` works identically in the reverse direction:
+
+```
+jira2md input.jira
+jira2md input.jira output.md
+cat input.jira | jira2md
+```
+
+An explicit input file that doesn't exist causes the command to exit non-zero
+with an error message on stderr.
+
 ## How to Use
 
 ### Markdown String

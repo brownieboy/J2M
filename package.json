@@ -1,6 +1,6 @@
 {
     "name": "jira2md",
-    "version": "3.0.1",
+    "version": "3.1.0",
     "keywords": [
         "jira",
         "atlassian",
@@ -14,6 +14,10 @@
     },
     "description": "JIRA to MarkDown text format converter.",
     "main": "index.js",
+    "bin": {
+        "md2jira": "./bin/md2jira.js",
+        "jira2md": "./bin/jira2md.js"
+    },
     "devDependencies": {
         "chai": "^4.1.2",
         "eslint": "^8.24.0",
