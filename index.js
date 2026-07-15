@@ -116,86 +116,111 @@ class J2M {
             sub: '~',
         };
 
-        return (
-            str
-                // Tables
-                .replace(
-                    /^\n((?:\|.*?)+\|)[ \t]*\n((?:\|\s*?-{3,}\s*?)+\|)[ \t]*\n((?:(?:\|.*?)+\|[ \t]*\n)*)$/gm,
-                    (match, headerLine, separatorLine, rowstr) => {
-                        const headers = headerLine.match(/[^|]+(?=\|)/g);
-                        const separators = separatorLine.match(/[^|]+(?=\|)/g);
-                        if (headers.length !== separators.length) return match;
+        // Code fences and inline code spans must pass through untouched, so they're
+        // pulled out before any other transform runs and spliced back in verbatim
+        // once every other transform has finished.
+        const codeBlocks = [];
+        const inlineCode = [];
+        const codeBlockToken = (i) => `CODEBLOCK${i}`;
+        const inlineCodeToken = (i) => `INLINECODE${i}`;
 
-                        const rows = rowstr.split('\n');
-                        if (rows.length === 2 && headers.length === 1)
-                            // Panel
-                            return `{panel:title=${headers[0].trim()}}\n${rowstr
-                                .replace(/^\|(.*)[ \t]*\|/, '$1')
-                                .trim()}\n{panel}\n`;
+        let jira = str
+            // Named/Un-Named Code Block (extracted first, restored untouched at the end)
+            .replace(/```(.+\n)?((?:.|\n)*?)```/g, (match, synt, content) => {
+                const token = codeBlockToken(codeBlocks.length);
+                codeBlocks.push({ synt, content });
+                return token;
+            })
+            // Inline-Preformatted Text (extracted first, restored untouched at the end)
+            .replace(/`([^`]+)`/g, (match, content) => {
+                const token = inlineCodeToken(inlineCode.length);
+                inlineCode.push(content);
+                return token;
+            })
+            // Tables
+            .replace(
+                /^\n((?:\|.*?)+\|)[ \t]*\n((?:\|\s*?-{3,}\s*?)+\|)[ \t]*\n((?:(?:\|.*?)+\|[ \t]*\n)*)$/gm,
+                (match, headerLine, separatorLine, rowstr) => {
+                    const headers = headerLine.match(/[^|]+(?=\|)/g);
+                    const separators = separatorLine.match(/[^|]+(?=\|)/g);
+                    if (headers.length !== separators.length) return match;
 
-                        return `||${headers.join('||')}||\n${rowstr}`;
-                    }
-                )
-                // Bold, Italic, and Combined (bold+italic)
-                .replace(/([*_]+)(\S.*?)\1/g, (match, wrapper, content) => {
-                    switch (wrapper.length) {
-                        case 1:
-                            return `_${content}_`;
-                        case 2:
-                            return `*${content}*`;
-                        case 3:
-                            return `_*${content}*_`;
-                        default:
-                            return wrapper + content + wrapper;
-                    }
-                })
-                // All Headers (# format)
-                .replace(/^([#]+)(.*?)$/gm, (match, level, content) => {
-                    return `h${level.length}.${content}`;
-                })
-                // Headers (H1 and H2 underlines)
-                .replace(/^(.*?)\n([=-]+)$/gm, (match, content, level) => {
-                    return `h${level[0] === '=' ? 1 : 2}. ${content}`;
-                })
-                // Ordered lists
-                .replace(/^([ \t]*)\d+\.\s+/gm, (match, spaces) => {
-                    return `${Array(Math.floor(spaces.length / 3) + 1)
-                        .fill('#')
-                        .join('')} `;
-                })
-                // Un-Ordered Lists
-                .replace(/^([ \t]*)\*\s+/gm, (match, spaces) => {
-                    return `${Array(Math.floor(spaces.length / 2 + 1))
-                        .fill('*')
-                        .join('')} `;
-                })
-                // Headers (h1 or h2) (lines "underlined" by ---- or =====)
-                // Citations, Inserts, Subscripts, Superscripts, and Strikethroughs
-                .replace(new RegExp(`<(${Object.keys(map).join('|')})>(.*?)</\\1>`, 'g'), (match, from, content) => {
-                    const to = map[from];
-                    return to + content + to;
-                })
-                // Other kind of strikethrough
-                .replace(/(\s+)~~(.*?)~~(\s+)/g, '$1-$2-$3')
-                // Named/Un-Named Code Block
-                .replace(/```(.+\n)?((?:.|\n)*?)```/g, (match, synt, content) => {
-                    let code = '{code}';
-                    if (synt) {
-                        code = `{code:${synt.replace(/\n/g, '')}}\n`;
-                    }
-                    return `${code}${content}{code}`;
-                })
-                // Inline-Preformatted Text
-                .replace(/`([^`]+)`/g, '{{$1}}')
-                // Images
-                .replace(/!\[[^\]]*\]\(([^)]+)\)/g, '!$1!')
-                // Named Link
-                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '[$1|$2]')
-                // Un-Named Link
-                .replace(/<([^>]+)>/g, '[$1]')
-                // Single Paragraph Blockquote
-                .replace(/^>/gm, 'bq.')
-        );
+                    const rows = rowstr.split('\n');
+                    if (rows.length === 2 && headers.length === 1)
+                        // Panel
+                        return `{panel:title=${headers[0].trim()}}\n${rowstr
+                            .replace(/^\|(.*)[ \t]*\|/, '$1')
+                            .trim()}\n{panel}\n`;
+
+                    return `||${headers.join('||')}||\n${rowstr}`;
+                }
+            )
+            // Bold, Italic, and Combined (bold+italic)
+            .replace(/([*_]+)(\S.*?)\1/g, (match, wrapper, content) => {
+                switch (wrapper.length) {
+                    case 1:
+                        return `_${content}_`;
+                    case 2:
+                        return `*${content}*`;
+                    case 3:
+                        return `_*${content}*_`;
+                    default:
+                        return wrapper + content + wrapper;
+                }
+            })
+            // All Headers (# format)
+            .replace(/^([#]+)(.*?)$/gm, (match, level, content) => {
+                return `h${level.length}.${content}`;
+            })
+            // Headers (H1 and H2 underlines)
+            .replace(/^(.*?)\n([=-]+)$/gm, (match, content, level) => {
+                return `h${level[0] === '=' ? 1 : 2}. ${content}`;
+            })
+            // Ordered lists
+            .replace(/^([ \t]*)\d+\.\s+/gm, (match, spaces) => {
+                return `${Array(Math.floor(spaces.length / 3) + 1)
+                    .fill('#')
+                    .join('')} `;
+            })
+            // Un-Ordered Lists
+            .replace(/^([ \t]*)\*\s+/gm, (match, spaces) => {
+                return `${Array(Math.floor(spaces.length / 2 + 1))
+                    .fill('*')
+                    .join('')} `;
+            })
+            // Headers (h1 or h2) (lines "underlined" by ---- or =====)
+            // Citations, Inserts, Subscripts, Superscripts, and Strikethroughs
+            .replace(new RegExp(`<(${Object.keys(map).join('|')})>(.*?)</\\1>`, 'g'), (match, from, content) => {
+                const to = map[from];
+                return to + content + to;
+            })
+            // Other kind of strikethrough
+            .replace(/(\s+)~~(.*?)~~(\s+)/g, '$1-$2-$3')
+            // Images
+            .replace(/!\[[^\]]*\]\(([^)]+)\)/g, '!$1!')
+            // Named Link
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '[$1|$2]')
+            // Un-Named Link
+            .replace(/<([^>]+)>/g, '[$1]')
+            // Single Paragraph Blockquote
+            .replace(/^>/gm, 'bq.');
+
+        // Restore inline code spans, untouched by any of the transforms above
+        jira = jira.replace(/INLINECODE(\d+)/g, (match, index) => {
+            return `{{${inlineCode[Number(index)]}}}`;
+        });
+
+        // Restore code fences, untouched by any of the transforms above
+        jira = jira.replace(/CODEBLOCK(\d+)/g, (match, index) => {
+            const { synt, content } = codeBlocks[Number(index)];
+            let code = '{code}';
+            if (synt) {
+                code = `{code:${synt.replace(/\n/g, '')}}\n`;
+            }
+            return `${code}${content}{code}`;
+        });
+
+        return jira;
     }
 }
 

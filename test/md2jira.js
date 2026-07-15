@@ -45,11 +45,35 @@ describe('to_jira', () => {
     });
     it('should convert preformatted blocks properly', () => {
         const jira = j2m.to_jira('```\nso *no* further **formatting** is done here\n```');
-        jira.should.eql('{code}\nso _no_ further *formatting* is done here\n{code}');
+        jira.should.eql('{code}\nso *no* further **formatting** is done here\n{code}');
     });
     it('should convert language-specific code blocks properly', () => {
         const jira = j2m.to_jira("```javascript\nconst hello = 'world';\n```");
         jira.should.eql("{code:javascript}\nconst hello = 'world';\n{code}");
+    });
+    it('should not mangle JSX/HTML-like tags inside a fenced code block', () => {
+        const code =
+            'const AppLayout = () => {\n' +
+            '  if (!themeReady) {\n' +
+            "    return pathname.startsWith('/summary/') ? <WsSummarySkeletonPage /> : <WsSkeletonPage />\n" +
+            '  }\n' +
+            '  return (\n' +
+            '    <>\n' +
+            '      <Outlet />\n' +
+            '      <GlobalSideSheet />\n' +
+            '    </>\n' +
+            '  )\n' +
+            '}\n';
+        const jira = j2m.to_jira(`\`\`\`javascript\n${code}\`\`\``);
+        jira.should.eql(`{code:javascript}\n${code}{code}`);
+    });
+    it('should not mangle angle-bracket content inside a fenced code block with no language tag', () => {
+        const jira = j2m.to_jira('```\n<Foo /> and <Bar>baz</Bar>\n```');
+        jira.should.eql('{code}\n<Foo /> and <Bar>baz</Bar>\n{code}');
+    });
+    it('should not mangle angle-bracket content inside an inline code span', () => {
+        const jira = j2m.to_jira('`<Foo />`');
+        jira.should.eql('{{<Foo />}}');
     });
     it('should convert unnamed images properly', () => {
         const jira = j2m.to_jira('![](http://google.com/image)');
@@ -114,7 +138,11 @@ describe('to_jira', () => {
         jira.should.eql('* This is not bold!\n** This is *bold*.');
     });
     it('should be able to handle a complicated multi-line markdown string and convert it to markdown', () => {
-        const jiraStr = fs.readFileSync(path.resolve(__dirname, 'test.jira'), 'utf8');
+        // Uses a dedicated fixture (rather than test.jira) because the fenced code block's
+        // content must now pass through to_jira unchanged; test.jira is also used as the
+        // *input* fixture for the (out-of-scope, still-buggy) to_markdown reverse-direction
+        // tests in jira2md.js and to_html.js, so it can't be updated to reflect this fix.
+        const jiraStr = fs.readFileSync(path.resolve(__dirname, 'test-to-jira.jira'), 'utf8');
         const mdStr = fs.readFileSync(path.resolve(__dirname, 'test.md'), 'utf8');
         const jira = j2m.to_jira(mdStr);
         jira.should.eql(jiraStr);
