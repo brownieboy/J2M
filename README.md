@@ -42,6 +42,8 @@ Installing the package globally (`npm install -g jira2md`) provides two commands
 * `md2jira` — Markdown → JIRA wiki markup
 * `jira2md` — JIRA wiki markup → Markdown
 
+> The CLI is not yet on the npm registry; install it directly from this fork with `npm install -g github:brownieboy/J2M#bugfix/react-components`.
+
 Both follow the same usage conventions:
 
 ```
