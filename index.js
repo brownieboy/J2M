@@ -120,14 +120,25 @@ class J2M {
         // pulled out before any other transform runs and spliced back in verbatim
         // once every other transform has finished.
         const codeBlocks = [];
+        const listCodeBlocks = new Set();
         const inlineCode = [];
         const codeBlockToken = (i) => `CODEBLOCK${i}`;
         const inlineCodeToken = (i) => `INLINECODE${i}`;
 
         let jira = str
             // Named/Un-Named Code Block (extracted first, restored untouched at the end)
-            .replace(/```(.+\n)?((?:.|\n)*?)```/g, (match, synt, content) => {
+            .replace(/^([ \t]*)```(.+\n)?((?:.|\n)*?)```/gm, (match, indent, synt, content) => {
                 const token = codeBlockToken(codeBlocks.length);
+                if (indent) {
+                    // Fence nested in a list item: drop the item indentation from the
+                    // code itself (including the closing fence's indent)
+                    listCodeBlocks.add(token);
+                    content = content
+                        .replace(/[ \t]+$/, '')
+                        .split('\n')
+                        .map((line) => (line.startsWith(indent) ? line.slice(indent.length) : line))
+                        .join('\n');
+                }
                 codeBlocks.push({ synt, content });
                 return token;
             })
@@ -204,6 +215,14 @@ class J2M {
             .replace(/<([^>]+)>/g, '[$1]')
             // Single Paragraph Blockquote
             .replace(/^>/gm, 'bq.');
+
+        // JIRA ends a list at a blank line, so a code block inside a list item must sit
+        // directly between its item line and the next one (and be unindented) for the
+        // list numbering to carry on
+        listCodeBlocks.forEach((token) => {
+            jira = jira.replace(new RegExp(`\\n[ \\t]*\\n+(?=${token}(?!\\d))`, 'g'), '\n');
+            jira = jira.replace(new RegExp(`(${token}(?!\\d))\\n[ \\t]*\\n+(?=[ \\t]*(?:#+|\\*+) )`, 'g'), '$1\n');
+        });
 
         // Restore inline code spans, untouched by any of the transforms above
         jira = jira.replace(/INLINECODE(\d+)/g, (match, index) => {

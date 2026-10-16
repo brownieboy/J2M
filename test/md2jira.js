@@ -147,4 +147,18 @@ describe('to_jira', () => {
         const jira = j2m.to_jira(mdStr);
         jira.should.eql(jiraStr);
     });
+    it('should keep an ordered list continuous across fenced code blocks inside list items', () => {
+        const md = '1. First:\n\n   ```bash\n   export A=1\n   ```\n\n2. Second:\n\n   ```bash\n   npm i\n   ```\n\n3. Third.\n';
+        const jira = j2m.to_jira(md);
+        jira.should.eql('# First:\n{code:bash}\nexport A=1\n{code}\n# Second:\n{code:bash}\nnpm i\n{code}\n# Third.\n');
+    });
+    it('should keep JSX/HTML-like tags untouched in fenced code inside list items', () => {
+        const md = '1. Use it:\n\n   ```jsx\n   <Foo bar="*x*" />\n   ```\n\n2. Done.';
+        const jira = j2m.to_jira(md);
+        jira.should.eql('# Use it:\n{code:jsx}\n<Foo bar="*x*" />\n{code}\n# Done.');
+    });
+    it('should not touch blank lines around top-level fenced code blocks', () => {
+        const jira = j2m.to_jira('Text\n\n```\ncode\n```\n\nMore');
+        jira.should.eql('Text\n\n{code}\ncode\n{code}\n\nMore');
+    });
 });
